@@ -1,0 +1,772 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b0e12">
+<title>IRON CROWN: THE LAST FORTRESS</title>
+
+<style>
+:root {
+  --bg:#0b0e12;
+  --panel:#151c22;
+  --line:#394650;
+  --text:#e9e4d8;
+  --blue:#53b6e8;
+  --red:#e06459;
+  --gold:#d8b36b;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  padding:12px;
+  background:var(--bg);
+  color:var(--text);
+  font:14px Arial,sans-serif;
+}
+header {
+  border-bottom:2px solid var(--gold);
+  padding:12px 4px 16px;
+  margin-bottom:12px;
+}
+.logo {
+  font-size:clamp(20px,5vw,32px);
+  font-weight:900;
+  letter-spacing:3px;
+}
+.subtitle {
+  margin-top:6px;
+  color:#9ba8b0;
+  font-size:11px;
+  letter-spacing:2px;
+}
+.layout {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 260px;
+  gap:12px;
+}
+.panel {
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:6px;
+  overflow:hidden;
+  margin-bottom:12px;
+}
+.panel-title {
+  padding:11px;
+  background:#10161b;
+  border-bottom:1px solid var(--line);
+  font-weight:bold;
+  letter-spacing:1px;
+}
+#battlefield {
+  display:block;
+  width:100%;
+  height:auto;
+  background:#26343b;
+  touch-action:manipulation;
+}
+.controls { padding:10px; }
+button {
+  border:1px solid #53616b;
+  background:#26343c;
+  color:var(--text);
+  border-radius:4px;
+  padding:11px 12px;
+  margin:3px;
+  font-weight:bold;
+  cursor:pointer;
+}
+button:active { transform:translateY(1px); }
+button.primary { border-color:var(--blue); }
+button.danger { border-color:var(--red); }
+button:disabled { opacity:.4; }
+.stat { padding:12px; }
+.statline {
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  margin:10px 0;
+}
+.value { font-weight:bold; }
+.blue { color:var(--blue); }
+.red { color:var(--red); }
+.gold { color:var(--gold); }
+.meter {
+  height:8px;
+  background:#080b0e;
+  border:1px solid #38434b;
+  margin-top:5px;
+}
+.fill {
+  height:100%;
+  width:100%;
+  background:var(--blue);
+  transition:width .2s;
+}
+.fill.enemy { background:var(--red); }
+.small {
+  color:#9ba8b0;
+  font-size:12px;
+  line-height:1.5;
+}
+#message {
+  min-height:42px;
+  padding:10px;
+  color:var(--gold);
+  background:#10161b;
+  border-top:1px solid var(--line);
+}
+#log {
+  height:150px;
+  overflow:auto;
+  padding:10px;
+  font-size:12px;
+  line-height:1.6;
+  color:#b9c4c9;
+}
+.room-list {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  padding:10px;
+}
+.room {
+  text-align:left;
+  margin:0;
+  font-size:11px;
+  padding:9px 6px;
+}
+.room.selected { border-color:var(--gold); }
+.room.disabled { opacity:.4; }
+.footer {
+  color:#72818b;
+  font-size:11px;
+  text-align:center;
+  padding:10px;
+}
+@media(max-width:760px) {
+  body { padding:7px; }
+  .layout { grid-template-columns:1fr; }
+  .sidebar { display:grid; grid-template-columns:1fr; }
+  #log { height:110px; }
+}
+</style>
+</head>
+
+<body>
+<header>
+  <div class="logo">IRON CROWN</div>
+  <div class="subtitle">THE LAST FORTRESS · ORTHEA · 1897</div>
+</header>
+
+<div class="layout">
+  <main>
+    <section class="panel">
+      <div class="panel-title">⚔ TACTICAL BATTLEFIELD</div>
+      <canvas id="battlefield" width="1000" height="500"></canvas>
+      <div class="controls">
+        <button id="pauseButton" class="primary">Ⅱ PAUSE</button>
+        <button id="fireButton" class="danger">⚔ FIRE</button>
+        <button id="repairButton">⚙ REPAIR</button>
+        <button id="restartButton">↻ RESTART</button>
+      </div>
+      <div id="message">Select an enemy room, then FIRE to attack.</div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">YOUR FORTRESS — ROOM STATUS</div>
+      <div class="room-list" id="roomList"></div>
+    </section>
+  </main>
+
+  <aside class="sidebar">
+    <section class="panel">
+      <div class="panel-title">IRON CROWN</div>
+      <div class="stat">
+        <div class="statline"><span>Hull integrity</span><b id="hullText">100%</b></div>
+        <div class="meter"><div id="hullBar" class="fill"></div></div>
+
+        <div class="statline"><span>Steam pressure</span><b id="steamText">72</b></div>
+        <div class="meter"><div id="steamBar" class="fill"></div></div>
+
+        <div class="statline"><span>Scrap reserves</span><b id="scrapText">35</b></div>
+        <div class="statline"><span>Weapon status</span><b id="weaponText">READY</b></div>
+        <div class="statline"><span>Battle time</span><b id="timeText">00:00</b></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">AUREATE REDOUBT</div>
+      <div class="stat">
+        <div class="statline"><span>Enemy hull</span><b id="enemyHullText">100%</b></div>
+        <div class="meter"><div id="enemyHullBar" class="fill enemy"></div></div>
+        <div class="statline"><span>Enemy weapon</span><b id="enemyWeaponText">READY</b></div>
+        <p class="small">The enemy fortress fires automatically when its weapon is ready. Disable its gun room to stop its attacks.</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">BATTLE ORDERS</div>
+      <div class="stat small">
+        1. Select a red enemy room on the battlefield or use the target buttons below.<br><br>
+        2. Press FIRE when your weapon is ready.<br><br>
+        3. Select one of your blue rooms and REPAIR it using scrap.<br><br>
+        4. PAUSE stops combat while you plan your next move.
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">ENEMY TARGETS</div>
+      <div id="targetList" class="room-list"></div>
+    </section>
+  </aside>
+</div>
+
+<section class="panel">
+  <div class="panel-title">COMMAND LOG</div>
+  <div id="log">[SYSTEM] Iron Crown combat systems initialized.</div>
+</section>
+
+<div class="footer">
+  PROTOTYPE 0.1 · EXPERIMENTAL AETHER-POWERED WAR MACHINE
+</div>
+
+<script>
+"use strict";
+
+const canvas = document.getElementById("battlefield");
+const ctx = canvas.getContext("2d");
+
+const $ = id => document.getElementById(id);
+
+const state = {
+  paused:false,
+  ended:false,
+  won:false,
+  time:0,
+  lastTick:0,
+  steam:72,
+  scrap:35,
+  playerReload:0,
+  enemyReload:4,
+  selectedPlayer:"gun",
+  selectedEnemy:"gun",
+  projectiles:[],
+  effects:[],
+  shake:0
+};
+
+const playerRooms = [
+  {id:"gun",name:"Gun Deck",x:90,y:190,w:100,h:95,hp:100,max:100},
+  {id:"boiler",name:"Boiler Room",x:190,y:285,w:100,h:80,hp:100,max:100},
+  {id:"bridge",name:"Command Bridge",x:190,y:190,w:100,h:95,hp:100,max:100},
+  {id:"workshop",name:"Workshop",x:290,y:285,w:100,h:80,hp:100,max:100},
+  {id:"aether",name:"Aether Chamber",x:290,y:190,w:100,h:95,hp:100,max:100}
+];
+
+const enemyRooms = [
+  {id:"gun",name:"Enemy Gun Deck",x:710,y:190,w:100,h:95,hp:100,max:100},
+  {id:"boiler",name:"Enemy Boiler",x:710,y:285,w:100,h:80,hp:100,max:100},
+  {id:"bridge",name:"Enemy Command",x:610,y:190,w:100,h:95,hp:100,max:100},
+  {id:"workshop",name:"Enemy Workshop",x:610,y:285,w:100,h:80,hp:100,max:100},
+  {id:"aether",name:"Enemy Aether",x:810,y:285,w:80,h:80,hp:100,max:100}
+];
+
+function log(message) {
+  const box=$("log");
+  const line=document.createElement("div");
+  line.textContent="["+formatTime(state.time)+"] "+message;
+  box.appendChild(line);
+  while(box.children.length>60) box.removeChild(box.firstChild);
+  box.scrollTop=box.scrollHeight;
+}
+
+function formatTime(seconds) {
+  const n=Math.floor(seconds);
+  return String(Math.floor(n/60)).padStart(2,"0")+":"+
+         String(n%60).padStart(2,"0");
+}
+
+function roomById(rooms,id) {
+  return rooms.find(r=>r.id===id);
+}
+
+function alive(room) {
+  return room.hp>0;
+}
+
+function selectEnemy(id) {
+  const room=roomById(enemyRooms,id);
+  if(!room || !alive(room) || state.ended) return;
+  state.selectedEnemy=id;
+  $("message").textContent="Target locked: "+room.name+". Press FIRE to attack.";
+  renderUI();
+  draw();
+}
+
+function selectPlayer(id) {
+  const room=roomById(playerRooms,id);
+  if(!room || !alive(room) || state.ended) return;
+  state.selectedPlayer=id;
+  $("message").textContent="Selected "+room.name+". Press REPAIR to restore it.";
+  renderUI();
+  draw();
+}
+
+function fire(from,to,side) {
+  const sx=side==="player"?from.x+from.w:from.x;
+  const sy=from.y+from.h/2;
+  const tx=to.x+(side==="player"?0:to.w);
+  const ty=to.y+to.h/2;
+
+  state.projectiles.push({
+    x:sx,y:sy,tx,ty,
+    speed:side==="player"?480:360,
+    side,target:to,
+    damage:side==="player"?28:15
+  });
+}
+
+function playerFire() {
+  if(state.ended || state.paused) return;
+  if(state.playerReload>0) {
+    log("Main gun is reloading.");
+    return;
+  }
+  if(state.steam<12) {
+    log("Insufficient steam pressure to fire.");
+    $("message").textContent="Not enough steam. Wait for pressure to recover.";
+    return;
+  }
+
+  const target=roomById(enemyRooms,state.selectedEnemy);
+  if(!target || !alive(target)) {
+    log("Selected target is disabled.");
+    return;
+  }
+
+  const gun=roomById(playerRooms,"gun");
+  if(!alive(gun)) {
+    log("Gun Deck disabled. Repair it before firing.");
+    return;
+  }
+
+  state.steam-=12;
+  state.playerReload=3;
+  fire(gun,target,"player");
+  log("Iron Crown fired at "+target.name+".");
+  $("message").textContent="Shot fired. Impact pending.";
+  renderUI();
+}
+
+function enemyFire() {
+  if(state.ended || state.paused) return;
+
+  const gun=roomById(enemyRooms,"gun");
+  const boiler=roomById(enemyRooms,"boiler");
+  const bridge=roomById(enemyRooms,"bridge");
+  if(!alive(gun) || !alive(boiler)) return;
+
+  const candidates=playerRooms.filter(alive);
+  if(!candidates.length) return;
+
+  let target=candidates[Math.floor(Math.random()*candidates.length)];
+  if(!alive(bridge)) target=candidates[0];
+
+  fire(gun,target,"enemy");
+  log("Aureate Redoubt fired at "+target.name+".");
+}
+
+function damageRoom(room,amount,side) {
+  room.hp=Math.max(0,room.hp-amount);
+  state.shake=8;
+
+  state.effects.push({
+    x:room.x+room.w/2,
+    y:room.y+room.h/2,
+    life:.6,
+    color:side==="player"?"#ffbf73":"#ff725f"
+  });
+
+  log(room.name+" took "+amount+" damage.");
+
+  if(room.hp===0) {
+    log(room.name+" DISABLED.");
+    if(room.id==="gun") log("Main gun disabled.");
+  }
+
+  checkBattleEnd();
+  renderUI();
+}
+
+function checkBattleEnd() {
+  const playerAlive=playerRooms.some(alive);
+  const enemyAlive=enemyRooms.some(alive);
+
+  if(!enemyAlive) {
+    finishBattle(true);
+  } else if(!playerAlive) {
+    finishBattle(false);
+  }
+}
+
+function finishBattle(won) {
+  state.ended=true;
+  state.won=won;
+  state.paused=true;
+  $("message").textContent=won
+    ?"VICTORY — Aureate Redoubt has been neutralized."
+    :"DEFEAT — Iron Crown can no longer fight.";
+  log(won?"VICTORY. Enemy fortress disabled.":"DEFEAT. Iron Crown disabled.");
+  $("pauseButton").textContent="Ⅱ PAUSED";
+  renderUI();
+}
+
+function repair() {
+  if(state.ended || state.paused) return;
+
+  const room=roomById(playerRooms,state.selectedPlayer);
+  if(!room) return;
+  if(room.hp>=room.max) {
+    $("message").textContent=room.name+" is already fully operational.";
+    return;
+  }
+  if(state.scrap<10) {
+    $("message").textContent="Not enough scrap. Repair costs 10 scrap.";
+    return;
+  }
+
+  state.scrap-=10;
+  room.hp=Math.min(room.max,room.hp+35);
+  log("Crew repaired "+room.name+".");
+  $("message").textContent=room.name+" repaired. 10 scrap spent.";
+  renderUI();
+  draw();
+}
+
+function togglePause() {
+  if(state.ended) return;
+  state.paused=!state.paused;
+  $("pauseButton").textContent=state.paused?"▶ RESUME":"Ⅱ PAUSE";
+  $("message").textContent=state.paused
+    ?"TACTICAL PAUSE — combat simulation stopped."
+    :"Combat resumed. Enemy systems are active.";
+  log(state.paused?"Tactical pause engaged.":"Combat resumed.");
+  draw();
+}
+
+function renderUI() {
+  const playerHull=Math.round(
+    playerRooms.reduce((sum,r)=>sum+r.hp,0)/
+    playerRooms.reduce((sum,r)=>sum+r.max,0)*100
+  );
+  const enemyHull=Math.round(
+    enemyRooms.reduce((sum,r)=>sum+r.hp,0)/
+    enemyRooms.reduce((sum,r)=>sum+r.max,0)*100
+  );
+
+  $("hullText").textContent=playerHull+"%";
+  $("hullBar").style.width=playerHull+"%";
+  $("steamText").textContent=Math.floor(state.steam);
+  $("steamBar").style.width=state.steam+"%";
+  $("scrapText").textContent=state.scrap;
+  $("enemyHullText").textContent=enemyHull+"%";
+  $("enemyHullBar").style.width=enemyHull+"%";
+  $("timeText").textContent=formatTime(state.time);
+  $("weaponText").textContent=
+    !alive(roomById(playerRooms,"gun"))?"DISABLED":
+    state.playerReload>0?state.playerReload.toFixed(1)+"s":"READY";
+  $("enemyWeaponText").textContent=
+    !alive(roomById(enemyRooms,"gun"))?"DISABLED":
+    state.enemyReload>0?state.enemyReload.toFixed(1)+"s":"READY";
+
+  $("fireButton").disabled=state.ended||state.paused||
+    state.playerReload>0||!alive(roomById(playerRooms,"gun"));
+  $("repairButton").disabled=state.ended||state.paused;
+
+  $("roomList").innerHTML="";
+  playerRooms.forEach(room=>{
+    const b=document.createElement("button");
+    b.className="room"+
+      (state.selectedPlayer===room.id?" selected":"")+
+      (!alive(room)?" disabled":"");
+    b.textContent=room.name+" · "+room.hp+"%";
+    b.onclick=()=>selectPlayer(room.id);
+    $("roomList").appendChild(b);
+  });
+
+  $("targetList").innerHTML="";
+  enemyRooms.forEach(room=>{
+    const b=document.createElement("button");
+    b.className="room"+
+      (state.selectedEnemy===room.id?" selected":"")+
+      (!alive(room)?" disabled":"");
+    b.textContent=room.name+" · "+room.hp+"%";
+    b.onclick=()=>selectEnemy(room.id);
+    $("targetList").appendChild(b);
+  });
+}
+
+function drawBackground() {
+  const sky=ctx.createLinearGradient(0,0,0,500);
+  sky.addColorStop(0,"#18242c");
+  sky.addColorStop(1,"#48504d");
+  ctx.fillStyle=sky;
+  ctx.fillRect(0,0,1000,500);
+
+  ctx.fillStyle="#263036";
+  for(let i=0;i<12;i++) {
+    const x=i*92;
+    const h=60+(i*37%120);
+    ctx.fillRect(x,260-h,55,h);
+    ctx.fillRect(x+12,250-h,8,30);
+  }
+
+  ctx.fillStyle="#161d21";
+  ctx.fillRect(0,370,1000,130);
+  ctx.fillStyle="#4b4b42";
+  ctx.fillRect(0,390,1000,5);
+
+  ctx.strokeStyle="#626158";
+  ctx.lineWidth=2;
+  for(let x=0;x<1000;x+=45) {
+    ctx.beginPath();
+    ctx.moveTo(x,405);
+    ctx.lineTo(x+20,405);
+    ctx.stroke();
+  }
+
+  // Decorative central marker only: no collision barrier.
+  ctx.strokeStyle="rgba(225,220,190,.22)";
+  ctx.setLineDash([6,9]);
+  ctx.beginPath();
+  ctx.moveTo(500,100);
+  ctx.lineTo(500,390);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle="#b9b7a4";
+  ctx.font="12px Arial";
+  ctx.fillText("ASHLANDS INDUSTRIAL FRONT",380,32);
+}
+
+function drawFortress(rooms,side) {
+  const blue=side==="player";
+  const main=blue?"#294f63":"#74372f";
+  const light=blue?"#4b91ae":"#b45546";
+  const dark=blue?"#172b37":"#3a2423";
+  const name=blue?"IRON CROWN":"AUREATE REDOUBT";
+
+  const minX=Math.min(...rooms.map(r=>r.x))-12;
+  const maxX=Math.max(...rooms.map(r=>r.x+r.w))+12;
+
+  ctx.fillStyle=dark;
+  ctx.fillRect(minX,365,maxX-minX,18);
+
+  ctx.fillStyle=light;
+  ctx.fillRect(minX+15,365,18,8);
+  ctx.fillRect(maxX-35,365,18,8);
+
+  rooms.forEach(room=>{
+    ctx.save();
+    ctx.globalAlpha=room.hp===0?.32:1;
+
+    ctx.fillStyle=dark;
+    ctx.fillRect(room.x-5,room.y-5,room.w+10,room.h+10);
+
+    ctx.fillStyle=main;
+    ctx.fillRect(room.x,room.y,room.w,room.h);
+
+    ctx.strokeStyle=light;
+    ctx.lineWidth=3;
+    ctx.strokeRect(room.x,room.y,room.w,room.h);
+
+    ctx.fillStyle=light;
+    ctx.fillRect(room.x+5,room.y+6,room.w-10,5);
+
+    // Pipes and machinery.
+    ctx.strokeStyle=blue?"#8bb7c5":"#c28b72";
+    ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.moveTo(room.x+12,room.y+25);
+    ctx.lineTo(room.x+12,room.y+room.h-12);
+    ctx.lineTo(room.x+room.w-12,room.y+room.h-12);
+    ctx.stroke();
+
+    // Small windows.
+    ctx.fillStyle="#e1bd75";
+    for(let wx=room.x+25;wx<room.x+room.w-10;wx+=30) {
+      ctx.fillRect(wx,room.y+35,12,10);
+    }
+
+    ctx.fillStyle="#f2eadd";
+    ctx.font="bold 10px Arial";
+    ctx.textAlign="center";
+    ctx.fillText(room.name.replace("Enemy ",""),room.x+room.w/2,room.y+room.h-20);
+
+    // Room health bar.
+    ctx.fillStyle="#101010";
+    ctx.fillRect(room.x+8,room.y+room.h-10,room.w-16,4);
+    ctx.fillStyle=room.hp>50?"#7fbd81":"#e0a04e";
+    ctx.fillRect(room.x+8,room.y+room.h-10,
+      (room.w-16)*room.hp/room.max,4);
+
+    if(room.hp===0) {
+      ctx.fillStyle="#f0d4c4";
+      ctx.font="bold 11px Arial";
+      ctx.fillText("DISABLED",room.x+room.w/2,room.y+room.h/2);
+    }
+
+    const selected=blue
+      ?state.selectedPlayer===room.id
+      :state.selectedEnemy===room.id;
+
+    if(selected && room.hp>0) {
+      ctx.strokeStyle="#f5d77e";
+      ctx.lineWidth=3;
+      ctx.strokeRect(room.x-7,room.y-7,room.w+14,room.h+14);
+    }
+
+    ctx.restore();
+  });
+
+  ctx.fillStyle=light;
+  ctx.font="bold 16px Arial";
+  ctx.textAlign="center";
+  ctx.fillText(name,(minX+maxX)/2,150);
+  ctx.textAlign="left";
+}
+
+function drawProjectiles() {
+  state.projectiles.forEach(p=>{
+    ctx.strokeStyle=p.side==="player"?"#75d9ff":"#ff785f";
+    ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.moveTo(p.x,p.y);
+    ctx.lineTo(p.x-(p.side==="player"?18:-18),p.y);
+    ctx.stroke();
+
+    ctx.fillStyle="#fff1bd";
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,4,0,Math.PI*2);
+    ctx.fill();
+  });
+}
+
+function drawEffects() {
+  state.effects.forEach(e=>{
+    ctx.globalAlpha=Math.max(0,e.life/.6);
+    ctx.fillStyle=e.color;
+    ctx.beginPath();
+    ctx.arc(e.x,e.y,(.6-e.life)*45+4,0,Math.PI*2);
+    ctx.fill();
+  });
+  ctx.globalAlpha=1;
+}
+
+function draw() {
+  ctx.save();
+  if(state.shake>0) {
+    ctx.translate((Math.random()-.5)*state.shake,
+                  (Math.random()-.5)*state.shake);
+  }
+
+  drawBackground();
+  drawFortress(playerRooms,"player");
+  drawFortress(enemyRooms,"enemy");
+  drawProjectiles();
+  drawEffects();
+
+  if(state.paused && !state.ended) {
+    ctx.fillStyle="rgba(0,0,0,.6)";
+    ctx.fillRect(0,0,1000,500);
+    ctx.fillStyle="#f2d38a";
+    ctx.textAlign="center";
+    ctx.font="bold 38px Arial";
+    ctx.fillText("TACTICAL PAUSE",500,240);
+    ctx.font="16px Arial";
+    ctx.fillText("Orders can be planned while time is stopped",500,275);
+    ctx.textAlign="left";
+  }
+
+  if(state.ended) {
+    ctx.fillStyle="rgba(0,0,0,.72)";
+    ctx.fillRect(0,0,1000,500);
+    ctx.fillStyle=state.won?"#8fd3a0":"#e87869";
+    ctx.textAlign="center";
+    ctx.font="bold 44px Arial";
+    ctx.fillText(state.won?"VICTORY":"DEFEAT",500,235);
+    ctx.fillStyle="#f0e9d9";
+    ctx.font="18px Arial";
+    ctx.fillText("Press RESTART to fight again",500,275);
+    ctx.textAlign="left";
+  }
+
+  ctx.restore();
+}
+
+function update(dt) {
+  if(state.paused || state.ended) return;
+
+  state.time+=dt;
+  state.playerReload=Math.max(0,state.playerReload-dt);
+  state.enemyReload=Math.max(0,state.enemyReload-dt);
+  state.steam=Math.min(100,state.steam+dt*2.5);
+  state.scrap=Math.min(60,state.scrap+dt*.25);
+  state.shake=Math.max(0,state.shake-dt*15);
+
+  if(state.enemyReload<=0) {
+    enemyFire();
+    state.enemyReload=5.5;
+  }
+
+  for(let i=state.projectiles.length-1;i>=0;i--) {
+    const p=state.projectiles[i];
+    const dx=p.tx-p.x;
+    const dy=p.ty-p.y;
+    const distance=Math.sqrt(dx*dx+dy*dy);
+    const step=p.speed*dt;
+
+    if(distance<=step+4) {
+      if(alive(p.target)) damageRoom(p.target,p.damage,p.side);
+      state.projectiles.splice(i,1);
+    } else {
+      p.x+=(dx/distance)*step;
+      p.y+=(dy/distance)*step;
+    }
+  }
+
+  state.effects.forEach(e=>e.life-=dt);
+  state.effects=state.effects.filter(e=>e.life>0);
+
+  renderUI();
+}
+
+function frame(timestamp) {
+  if(!state.lastTick) state.lastTick=timestamp;
+  const dt=Math.min((timestamp-state.lastTick)/1000,.05);
+  state.lastTick=timestamp;
+
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+
+function restart() {
+  state.paused=false;
+  state.ended=false;
+  state.won=false;
+  state.time=0;
+  state.steam=72;
+  state.scrap=35;
+  state.playerReload=0;
+  state.enemyReload=4;
+  state.selectedPlayer="gun";
+  state.selectedEnemy="gun";
+  state.projectiles=[];
+  state.effects=[];
+  state.shake=0;
+
+  [...playerRooms,...enemyRooms
